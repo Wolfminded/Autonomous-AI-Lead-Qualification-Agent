@@ -108,3 +108,29 @@ The AI agent evaluates leads using a weighted scoring system:
   "recommended_offer": "Enterprise plan"
 }
 
+🔐 Error Handling & Reliability
+Deduplication logic prevents duplicate leads
+Website health check improves scoring accuracy
+Structured outputs ensure predictable AI responses
+Error trigger sends failure alerts via email
+🧠 Future Improvements
+🧠 Long-term memory (lead history tracking)
+🤖 Multi-agent system (scoring + outreach agents)
+🔁 Feedback loop to improve scoring accuracy
+📊 Dashboard for lead analytics
+🌐 Public demo interface
+🎯 Why This Project Matters
+
+Most automation systems follow fixed rules.
+
+This system:
+
+Thinks → Decides → Acts
+
+It demonstrates how Agentic AI can replace repetitive business workflows with intelligent, autonomous systems.
+
+👤 Author
+
+Built by [Your Name]
+
+If you're working on AI automation, agent systems, or n8n workflows — let’s connect.
