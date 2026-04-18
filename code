@@ -1,0 +1,990 @@
+{
+  "name": "Autonomous B2B Lead Qualification AI Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Let's See If We're a Good Fit",
+        "formDescription": "Tell us a bit about yourself and your business. It only takes 2 minutes — and we'll follow up with something actually useful.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "What is your full name?",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "What is your Email Address?",
+              "fieldType": "email",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "What is your Website URL?",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "What is the name of your company?",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "What is your company size (number of employees)?",
+              "fieldType": "number",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "What is your monthly budget (USD)?",
+              "fieldType": "number",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "What problem are you trying to solve?",
+              "fieldType": "textarea",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "How did you hear about us?",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Google Search"
+                  },
+                  {
+                    "option": "LinkedIn"
+                  },
+                  {
+                    "option": "Referral"
+                  },
+                  {
+                    "option": "Twitter / X"
+                  },
+                  {
+                    "option": "YouTube"
+                  },
+                  {
+                    "option": "Other"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "What is your timeline to get started?",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Immediately (this week)"
+                  },
+                  {
+                    "option": "Within 1 month"
+                  },
+                  {
+                    "option": "1–3 months"
+                  },
+                  {
+                    "option": "Just exploring"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "respondWithOptions": {
+            "values": {}
+          }
+        }
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        -2560,
+        80
+      ],
+      "id": "43f0605a-b84d-4a40-a968-9f43a2ca9e15",
+      "name": "On Form Submission",
+      "webhookId": "c5e02da4-82b7-41ac-ba36-4e1973c127d5"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// ================================================================\n// v3: VALIDATE & PREPARE LEAD DATA\n// Normalizes inputs, validates email, extracts domain metadata\n// Added: urgency signal, referral source, timeline scoring\n// ================================================================\nconst f = $json;\n\n// --- Extract & normalize\nconst name        = (f['What is your full name?'] || '').trim();\nconst email       = (f['What is your Email Address?'] || '').trim().toLowerCase();\nconst websiteRaw  = (f['What is your Website URL?'] || '').trim();\nconst companyName = (f['What is the name of your company?'] || '').trim();\nconst companySize = parseInt(f['What is your company size (number of employees)?'] || '0', 10);\nconst budget      = parseFloat(f['What is your monthly budget (USD)?'] || '0');\nconst problem     = (f['What problem are you trying to solve?'] || '').trim();\nconst referralSource = (f['How did you hear about us?'] || 'Unknown').trim();\nconst timeline    = (f['What is your timeline to get started?'] || 'Just exploring').trim();\n\n// --- Email validation\nconst emailRegex     = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\nconst isValidEmail   = emailRegex.test(email);\nconst emailDomain    = email.includes('@') ? email.split('@')[1].toLowerCase() : '';\nconst personalDomains = ['gmail.com','yahoo.com','hotmail.com','outlook.com',\n                         'aol.com','icloud.com','protonmail.com','live.com','ymail.com'];\nconst isPersonalEmail = personalDomains.includes(emailDomain);\n\n// --- Normalize website URL\nlet normalizedUrl = websiteRaw;\nif (normalizedUrl && !/^https?:\\/\\//i.test(normalizedUrl)) {\n  normalizedUrl = 'https://' + normalizedUrl;\n}\n\n// --- Company domain (from email or URL)\nconst companyDomain = (!isPersonalEmail && emailDomain)\n  ? emailDomain\n  : (websiteRaw\n      ? websiteRaw.replace(/^https?:\\/\\//i,'').split('/')[0].replace(/^www\\./,'')\n      : 'unknown');\n\n// --- Timeline urgency signal\nconst isUrgent = timeline === 'Immediately (this week)' || timeline === 'Within 1 month';\nconst timelineScore = timeline === 'Immediately (this week)' ? 15\n  : timeline === 'Within 1 month' ? 10\n  : timeline === '1–3 months' ? 5 : 0;\n\n// --- Data quality score\nlet dqScore = 0;\nif (isValidEmail)        dqScore += 20;\nif (!isPersonalEmail)    dqScore += 20;\nif (companyName)         dqScore += 20;\nif (normalizedUrl)       dqScore += 20;\nif (problem.length > 20) dqScore += 20;\nconst dataQuality = dqScore >= 80 ? 'Complete' : dqScore >= 40 ? 'Partial' : 'Incomplete';\n\n// --- Pass everything forward\nreturn {\n  name,\n  email,\n  companyName,\n  companySize,\n  budget,\n  problem,\n  websiteRaw,\n  normalizedUrl,\n  referralSource,\n  timeline,\n  isUrgent,\n  timelineScore,\n  _meta: {\n    emailDomain,\n    isValidEmail,\n    isPersonalEmail,\n    companyDomain,\n    dataQuality,\n    sessionKey: email,\n    submittedAt: new Date().toISOString(),\n    leadSource: 'Web Form'\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2336,
+        80
+      ],
+      "id": "33ddf8ac-9d09-4e02-8a95-3d832c675983",
+      "name": "Validate & Prepare Data"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.normalizedUrl }}",
+        "options": {
+          "allowUnauthorizedCerts": true,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 8000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2112,
+        80
+      ],
+      "id": "caacc279-70d8-4d37-bd1b-7b1167facce9",
+      "name": "Website Health Check",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// ================================================================\n// v3: MERGE ENRICHED DATA\n// Combines website health result with lead data\n// ================================================================\nconst leadData = $('Validate & Prepare Data').item.json;\nconst httpItem = $json;\n\nlet websiteStatus = 'Unreachable';\nlet isLive = false;\n\ntry {\n  const sc = httpItem.statusCode || httpItem.status;\n  if (sc && sc >= 200 && sc < 400) {\n    websiteStatus = 'Live (HTTP ' + sc + ')';\n    isLive = true;\n  } else if (sc) {\n    websiteStatus = 'Error (HTTP ' + sc + ')';\n  } else if (httpItem && !httpItem.error) {\n    websiteStatus = 'Live';\n    isLive = true;\n  }\n} catch(e) {\n  websiteStatus = 'Unreachable';\n}\n\nreturn {\n  ...leadData,\n  _websiteCheck: {\n    status: websiteStatus,\n    isLive\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1888,
+        80
+      ],
+      "id": "dd6d2816-cc20-4556-9f42-cbb24532e483",
+      "name": "Merge Enriched Data"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "app1cFVp84FeNdzuG",
+          "mode": "list",
+          "cachedResultName": "LEAD QUALIFICATION AI AGENT",
+          "cachedResultUrl": "https://airtable.com/app1cFVp84FeNdzuG"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl9QnfWSzJALfnrq",
+          "mode": "list",
+          "cachedResultName": "LEAD QUALIFICATION AI AGENT",
+          "cachedResultUrl": "https://airtable.com/app1cFVp84FeNdzuG/tbl9QnfWSzJALfnrq"
+        },
+        "filterByFormula": "={Email Address}=\"{{ $json.email }}\"",
+        "options": {
+          "fields": [
+            "Email Address"
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        -1664,
+        80
+      ],
+      "id": "518d1924-5878-4c36-be46-0e4ba6b74810",
+      "name": "Check Duplicate Email",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Cs6jNkXMdW4FMGfW",
+          "name": "LEAD QUALIFICATION AI AGENT"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// ================================================================\n// v3: DEDUPLICATION CHECK\n// Passes through only if this email has never been seen before\n// ================================================================\nconst records = $json.records || [];\nconst isDuplicate = records.length > 0;\n\nif (isDuplicate) {\n  // Stop this item silently — duplicate lead\n  return null;\n}\n\n// Not a duplicate — pass all merged lead data forward\nreturn $('Merge Enriched Data').item.json;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1440,
+        80
+      ],
+      "id": "e82a9ac4-17f1-44f8-aedd-6e0fb41bf093",
+      "name": "Deduplication Filter"
+    },
+    {
+      "parameters": {
+        "projectId": {
+          "__rl": true,
+          "value": "resume-492307",
+          "mode": "list",
+          "cachedResultName": "RESUME"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleVertex",
+      "typeVersion": 1,
+      "position": [
+        -1216,
+        304
+      ],
+      "id": "1479c8b2-83ff-4f5d-b88c-c2512c76993d",
+      "name": "Google Vertex Chat Model",
+      "credentials": {
+        "googleApi": {
+          "id": "0M7CltcKl6wzZz2y",
+          "name": "Google Service Account account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"score\": 85,\n  \"status\": \"Hot\",\n  \"explanation\": \"Corporate email from a known enterprise domain, website is live, monthly budget of $15,000, team of 200 employees, urgent timeline, and a specific actionable problem statement.\",\n  \"next_action\": \"Send a personalized LinkedIn connection request referencing their problem, then schedule a 30-min discovery call within 24 hours.\",\n  \"confidence\": \"High\",\n  \"disqualification_reason\": null,\n  \"data_quality\": \"Complete\",\n  \"urgency_flag\": true,\n  \"recommended_offer\": \"Enterprise plan with dedicated onboarding\"\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -1088,
+        304
+      ],
+      "id": "c0e55e1e-1acc-4eb0-92c2-6017222558b9",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Qualify this B2B lead: {{ $json.name }} from {{ $json.companyName }}.",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=You are an expert B2B lead qualification AI agent. Use structured multi-step reasoning to evaluate each lead thoroughly.\n\n## STEP 1 — ANALYZE ALL AVAILABLE LEAD DATA\n\n| Field | Value |\n|---|---|\n| **Name** | {{ $json.name }} |\n| **Email** | {{ $json.email }} |\n| **Email Domain** | {{ $json._meta.emailDomain }} |\n| **Personal Email?** | {{ $json._meta.isPersonalEmail }} |\n| **Email Valid?** | {{ $json._meta.isValidEmail }} |\n| **Company Name** | {{ $json.companyName }} |\n| **Company Size** | {{ $json.companySize }} employees |\n| **Monthly Budget** | ${{ $json.budget }} |\n| **Website URL** | {{ $json.normalizedUrl }} |\n| **Website Status** | {{ $json._websiteCheck.status }} |\n| **Problem Statement** | {{ $json.problem || 'Not provided' }} |\n| **Timeline** | {{ $json.timeline }} |\n| **Referral Source** | {{ $json.referralSource }} |\n| **Data Quality** | {{ $json._meta.dataQuality }} |\n\n## STEP 2 — SCORE THE LEAD (0 to 100)\n\nApply this weighted scoring matrix precisely:\n\n**Email Quality (max 20 pts)**\n- Business/corporate domain → +20 pts\n- Personal domain (Gmail, Yahoo, etc.) → +5 pts\n- Invalid or missing email → 0 pts\n\n**Website Credibility (max 15 pts)**\n- Website live and reachable → +15 pts\n- Unreachable or missing → 0 pts\n\n**Monthly Budget (max 25 pts)**\n- > $10,000/mo → +25 pts\n- $5,000–$9,999/mo → +18 pts\n- $1,000–$4,999/mo → +10 pts\n- < $1,000/mo → +3 pts\n\n**Company Size (max 15 pts)**\n- > 200 employees → +15 pts\n- 51–200 employees → +12 pts\n- 11–50 employees → +8 pts\n- 1–10 employees → +4 pts\n\n**Problem Statement Clarity (max 10 pts)**\n- Specific, detailed, actionable → +10 pts\n- Vague or generic → +4 pts\n- Not provided → 0 pts\n\n**Timeline Urgency (max 15 pts)**\n- Immediately (this week) → +15 pts\n- Within 1 month → +10 pts\n- 1–3 months → +5 pts\n- Just exploring → 0 pts\n\n**Penalties**\n- Missing company name → -10 pts\n- Personal email → -5 pts additional\n- Incomplete data quality → -10 pts\n- Suspicious or clearly fake data → -20 pts\n\n## STEP 3 — CLASSIFY\n\n- **Hot (70–100):** High-value, well-qualified → immediate sales outreach\n- **Warm (40–69):** Potential fit → nurture campaign\n- **Cold (0–39):** Poor fit or insufficient data → automated drip only\n\n## STEP 4 — RECOMMEND A NEXT ACTION\n\nWrite ONE specific, concrete, personalized action for the sales rep. Reference the company name and problem if possible. Example: 'Call {{ $json.name }} at {{ $json.companyName }} within 2 hours. Reference their problem with X and propose a 30-min solution walkthrough.'\n\n## STEP 5 — ASSESS CONFIDENCE\n\n- **High:** All key fields present, data consistent and credible.\n- **Medium:** Some fields missing or slightly inconsistent.\n- **Low:** Major gaps, suspicious info, or contradictory signals.\n\n## STEP 6 — RECOMMEND AN OFFER\n\nBased on budget and company size, recommend the most appropriate product/service tier or offer type (e.g. 'Enterprise plan with dedicated onboarding', 'Starter plan with free trial', 'Agency partnership proposal').\n\nIf the lead is Cold, populate disqualification_reason with a clear one-sentence explanation.\n\nReturn ONLY valid JSON. No preamble, no markdown, no text outside the JSON object."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -1216,
+        80
+      ],
+      "id": "7677589d-39fd-44a6-a1ef-db55aafaa27e",
+      "name": "LEAD Scoring AI Agent"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "app1cFVp84FeNdzuG",
+          "mode": "list",
+          "cachedResultName": "LEAD QUALIFICATION AI AGENT",
+          "cachedResultUrl": "https://airtable.com/app1cFVp84FeNdzuG"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl9QnfWSzJALfnrq",
+          "mode": "list",
+          "cachedResultName": "LEAD QUALIFICATION AI AGENT",
+          "cachedResultUrl": "https://airtable.com/app1cFVp84FeNdzuG/tbl9QnfWSzJALfnrq"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Name": "={{ $('Validate & Prepare Data').item.json.name }}",
+            "Email Address": "={{ $('Validate & Prepare Data').item.json.email }}",
+            "Company Name": "={{ $('Validate & Prepare Data').item.json.companyName }}",
+            "Website URL": "={{ $('Validate & Prepare Data').item.json.normalizedUrl }}",
+            "Company Size": "={{ parseInt($('Validate & Prepare Data').item.json.companySize) || 0 }}",
+            "Budget": "={{ parseFloat($('Validate & Prepare Data').item.json.budget) || 0 }}",
+            "Problem Statement": "={{ $('Validate & Prepare Data').item.json.problem }}",
+            "Timeline": "={{ $('Validate & Prepare Data').item.json.timeline }}",
+            "Referral Source": "={{ $('Validate & Prepare Data').item.json.referralSource }}",
+            "Score": "={{ $json.output.score }}",
+            "Status": "={{ $json.output.status }}",
+            "Explanation": "={{ $json.output.explanation }}",
+            "Next Action": "={{ $json.output.next_action }}",
+            "Confidence": "={{ $json.output.confidence }}",
+            "Recommended Offer": "={{ $json.output.recommended_offer }}",
+            "Disqualification Reason": "={{ $json.output.disqualification_reason || '' }}",
+            "Data Quality": "={{ $json.output.data_quality }}",
+            "Website Status": "={{ $('Merge Enriched Data').item.json._websiteCheck.status }}",
+            "Lead Source": "={{ $('Validate & Prepare Data').item.json._meta.leadSource }}",
+            "Submitted At": "={{ $('Validate & Prepare Data').item.json._meta.submittedAt }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Email Address",
+              "displayName": "Email Address",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Company Name",
+              "displayName": "Company Name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Website URL",
+              "displayName": "Website URL",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Company Size",
+              "displayName": "Company Size",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Budget",
+              "displayName": "Budget",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Problem Statement",
+              "displayName": "Problem Statement",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Timeline",
+              "displayName": "Timeline",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Referral Source",
+              "displayName": "Referral Source",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Score",
+              "displayName": "Score",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Explanation",
+              "displayName": "Explanation",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Next Action",
+              "displayName": "Next Action",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Confidence",
+              "displayName": "Confidence",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Recommended Offer",
+              "displayName": "Recommended Offer",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Disqualification Reason",
+              "displayName": "Disqualification Reason",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Data Quality",
+              "displayName": "Data Quality",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Website Status",
+              "displayName": "Website Status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Lead Source",
+              "displayName": "Lead Source",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Submitted At",
+              "displayName": "Submitted At",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        -864,
+        80
+      ],
+      "id": "65ffae80-3212-463c-9325-45cd196ea781",
+      "name": "Create Lead Record",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Cs6jNkXMdW4FMGfW",
+          "name": "LEAD QUALIFICATION AI AGENT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.fields.Status }}",
+                    "rightValue": "Hot",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "dcb6664f-f3ee-4726-b276-e934383cc8ed"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Hot"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "880903cf-11df-4e4a-bf53-c3e8ba5d21c8",
+                    "leftValue": "={{ $json.fields.Status }}",
+                    "rightValue": "Warm",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Warm"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "d8d9291a-b68e-46ce-81cd-2abe97ffc4fe",
+                    "leftValue": "={{ $json.fields.Status }}",
+                    "rightValue": "Cold",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Cold"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -640,
+        64
+      ],
+      "id": "f8039ea7-9103-4027-84de-4fbc38d26ffb",
+      "name": "Route by Lead Status"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "URL SLACK",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \"🔥 *HOT LEAD ALERT* — {{ $('Validate & Prepare Data').item.json.companyName }}\",\n  \"blocks\": [\n    {\n      \"type\": \"header\",\n      \"text\": { \"type\": \"plain_text\", \"text\": \"🔥 New Hot Lead\" }\n    },\n    {\n      \"type\": \"section\",\n      \"fields\": [\n        { \"type\": \"mrkdwn\", \"text\": \"*Name:*\\n{{ $('Validate & Prepare Data').item.json.name }}\" },\n        { \"type\": \"mrkdwn\", \"text\": \"*Company:*\\n{{ $('Validate & Prepare Data').item.json.companyName }}\" },\n        { \"type\": \"mrkdwn\", \"text\": \"*Email:*\\n{{ $('Validate & Prepare Data').item.json.email }}\" },\n        { \"type\": \"mrkdwn\", \"text\": \"*Budget:*\\n${{ $('Validate & Prepare Data').item.json.budget }}/mo\" },\n        { \"type\": \"mrkdwn\", \"text\": \"*Score:*\\n{{ $('LEAD Scoring AI Agent').item.json.output.score }}/100\" },\n        { \"type\": \"mrkdwn\", \"text\": \"*Timeline:*\\n{{ $('Validate & Prepare Data').item.json.timeline }}\" }\n      ]\n    },\n    {\n      \"type\": \"section\",\n      \"text\": { \"type\": \"mrkdwn\", \"text\": \"*Next Action:* {{ $('LEAD Scoring AI Agent').item.json.output.next_action }}\" }\n    },\n    {\n      \"type\": \"section\",\n      \"text\": { \"type\": \"mrkdwn\", \"text\": \"*Recommended Offer:* {{ $('LEAD Scoring AI Agent').item.json.output.recommended_offer }}\" }\n    }\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -416,
+        -112
+      ],
+      "id": "789caad7-ad93-4168-adb2-731f8e6933a7",
+      "name": "Slack Hot Lead Alert",
+      "continueOnFail": true,
+      "notes": "SETUP: Replace YOUR_SLACK_WEBHOOK_URL with your Slack Incoming Webhook from https://api.slack.com/apps"
+    },
+    {
+      "parameters": {
+        "sendTo": "YOUR_SALES_REP_EMAIL",
+        "subject": "=🔥 HOT LEAD [{{ $('LEAD Scoring AI Agent').item.json.output.score }}/100] — {{ $('Validate & Prepare Data').item.json.companyName }} | {{ $('Validate & Prepare Data').item.json.timeline }}",
+        "message": "=<div style=\"font-family:Arial,sans-serif;max-width:600px;\">\n<h2 style=\"color:#d32f2f;\">🔥 New Hot Lead — Act Within 2 Hours</h2>\n\n<table style=\"border-collapse:collapse;width:100%;margin-bottom:20px;\">\n  <tr style=\"background:#f5f5f5;\"><td style=\"padding:10px;border:1px solid #ddd;\"><b>Name</b></td><td style=\"padding:10px;border:1px solid #ddd;\">{{ $('Validate & Prepare Data').item.json.name }}</td></tr>\n  <tr><td style=\"padding:10px;border:1px solid #ddd;\"><b>Email</b></td><td style=\"padding:10px;border:1px solid #ddd;\">{{ $('Validate & Prepare Data').item.json.email }}</td></tr>\n  <tr style=\"background:#f5f5f5;\"><td style=\"padding:10px;border:1px solid #ddd;\"><b>Company</b></td><td style=\"padding:10px;border:1px solid #ddd;\">{{ $('Validate & Prepare Data').item.json.companyName }}</td></tr>\n  <tr><td style=\"padding:10px;border:1px solid #ddd;\"><b>Website</b></td><td style=\"padding:10px;border:1px solid #ddd;\"><a href=\"{{ $('Validate & Prepare Data').item.json.normalizedUrl }}\">{{ $('Validate & Prepare Data').item.json.normalizedUrl }}</a></td></tr>\n  <tr style=\"background:#f5f5f5;\"><td style=\"padding:10px;border:1px solid #ddd;\"><b>Company Size</b></td><td style=\"padding:10px;border:1px solid #ddd;\">{{ $('Validate & Prepare Data').item.json.companySize }} employees</td></tr>\n  <tr><td style=\"padding:10px;border:1px solid #ddd;\"><b>Monthly Budget</b></td><td style=\"padding:10px;border:1px solid #ddd;\">${{ $('Validate & Prepare Data').item.json.budget }}</td></tr>\n  <tr style=\"background:#f5f5f5;\"><td style=\"padding:10px;border:1px solid #ddd;\"><b>Timeline</b></td><td style=\"padding:10px;border:1px solid #ddd;\">{{ $('Validate & Prepare Data').item.json.timeline }}</td></tr>\n  <tr><td style=\"padding:10px;border:1px solid #ddd;\"><b>Referral Source</b></td><td style=\"padding:10px;border:1px solid #ddd;\">{{ $('Validate & Prepare Data').item.json.referralSource }}</td></tr>\n  <tr style=\"background:#f5f5f5;\"><td style=\"padding:10px;border:1px solid #ddd;\"><b>AI Score</b></td><td style=\"padding:10px;border:1px solid #ddd;\"><b>{{ $('LEAD Scoring AI Agent').item.json.output.score }}/100</b></td></tr>\n  <tr><td style=\"padding:10px;border:1px solid #ddd;\"><b>Confidence</b></td><td style=\"padding:10px;border:1px solid #ddd;\">{{ $('LEAD Scoring AI Agent').item.json.output.confidence }}</td></tr>\n</table>\n\n<h3 style=\"color:#1565c0;\">❓ Their Problem</h3>\n<p style=\"background:#e3f2fd;padding:12px;border-radius:6px;\"><i>{{ $('Validate & Prepare Data').item.json.problem }}</i></p>\n\n<h3 style=\"color:#2e7d32;\">👉 Recommended Next Action</h3>\n<p style=\"background:#e8f5e9;padding:12px;border-radius:6px;\"><b>{{ $('LEAD Scoring AI Agent').item.json.output.next_action }}</b></p>\n\n<h3 style=\"color:#6a1b9a;\">🎯 Recommended Offer</h3>\n<p style=\"background:#f3e5f5;padding:12px;border-radius:6px;\">{{ $('LEAD Scoring AI Agent').item.json.output.recommended_offer }}</p>\n\n<h3>🤖 AI Explanation</h3>\n<p>{{ $('LEAD Scoring AI Agent').item.json.output.explanation }}</p>\n\n<hr/><p style=\"color:#888;font-size:12px;\">Lead Qualification AI Agent v3.0 · Submitted {{ $('Validate & Prepare Data').item.json._meta.submittedAt }}</p>\n</div>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -192,
+        -112
+      ],
+      "id": "2818d3b1-af9b-44d3-bc47-a6ee140ab1af",
+      "name": "Sales Rep Alert Email",
+      "webhookId": "4ca3c1c9-8020-419a-95ab-f41ef2fc83a6",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "rjNfv4VarOpSbRQ8",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Validate & Prepare Data').item.json.email }}",
+        "subject": "=Let's talk — here's how we can help {{ $('Validate & Prepare Data').item.json.companyName }}",
+        "message": "=<div style=\"font-family:Arial,sans-serif;max-width:600px;\">\n<p>Hi {{ $('Validate & Prepare Data').item.json.name }},</p>\n\n<p>Thank you for reaching out. After reviewing what you shared, I can see a strong fit between what you're working on and what we do best.</p>\n\n<p>You mentioned: <i>\"{{ $('Validate & Prepare Data').item.json.problem }}\"</i></p>\n\n<p>That's exactly the kind of challenge we help companies like <b>{{ $('Validate & Prepare Data').item.json.companyName }}</b> solve. Given your timeline of <b>{{ $('Validate & Prepare Data').item.json.timeline }}</b>, I'd love to get on a quick call to walk you through a tailored solution.</p>\n\n<p><b>👉 Book your call here: YOUR_CALENDLY_LINK</b></p>\n\n<p>Spots fill up fast — I'd recommend grabbing a time in the next 24–48 hours.</p>\n\n<p>Looking forward to connecting!</p>\n<p>Best regards,<br/><b>YOUR_NAME</b><br/>YOUR_TITLE<br/>YOUR_COMPANY</p>\n</div>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        32,
+        -112
+      ],
+      "id": "7f54f102-f382-4ef6-8144-f375033a5135",
+      "name": "Hot Lead Customer Email",
+      "webhookId": "808de5d6-5656-4c6c-8d7b-e7d1bf478efc",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "rjNfv4VarOpSbRQ8",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Validate & Prepare Data').item.json.email }}",
+        "subject": "=Quick question about {{ $('Validate & Prepare Data').item.json.companyName }}'s goals",
+        "message": "=<div style=\"font-family:Arial,sans-serif;max-width:600px;\">\n<p>Hi {{ $('Validate & Prepare Data').item.json.name }},</p>\n\n<p>Thanks for sharing your details with us. We reviewed your submission and there's a real opportunity here.</p>\n\n<p>You mentioned: <i>\"{{ $('Validate & Prepare Data').item.json.problem }}\"</i></p>\n\n<p>We've helped similar companies tackle exactly this — and we'd love to explore whether we're the right fit for <b>{{ $('Validate & Prepare Data').item.json.companyName }}</b>.</p>\n\n<p>It's a low-pressure, 20-minute conversation. No pitch, just a genuine conversation about your goals.</p>\n\n<p><b>👉 Schedule a quick call: YOUR_CALENDLY_LINK</b></p>\n\n<p>In the meantime, feel free to explore some of our recent work: <a href=\"YOUR_PORTFOLIO_LINK\">View case studies →</a></p>\n\n<p>Best regards,<br/><b>YOUR_NAME</b><br/>YOUR_TITLE<br/>YOUR_COMPANY</p>\n</div>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -416,
+        80
+      ],
+      "id": "0cc3bd54-9eb2-4b1a-b94e-a24d060a97a0",
+      "name": "Warm Lead Customer Email",
+      "webhookId": "0d2a26fe-ffbe-4773-a88b-092c9bfc23d8",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "rjNfv4VarOpSbRQ8",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Validate & Prepare Data').item.json.email }}",
+        "subject": "Thanks for reaching out, {{ $('Validate & Prepare Data').item.json.name }}",
+        "message": "=<div style=\"font-family:Arial,sans-serif;max-width:600px;\">\n<p>Hi {{ $('Validate & Prepare Data').item.json.name }},</p>\n\n<p>Thank you for taking the time to fill out our form — we appreciate your interest in working with us.</p>\n\n<p>We've reviewed your submission and while we might not be the perfect fit right now, we'd love to stay connected. As your needs evolve, we may be exactly what you're looking for.</p>\n\n<p>In the meantime, here are a few resources you might find useful:</p>\n<ul>\n  <li><a href=\"YOUR_BLOG_LINK\">Our blog — tips and guides for YOUR_NICHE</a></li>\n  <li><a href=\"YOUR_NEWSLETTER_LINK\">Join our newsletter — weekly insights delivered to your inbox</a></li>\n</ul>\n\n<p>Don't hesitate to reach out if anything changes or if you have questions. You're always welcome here.</p>\n\n<p>Wishing you all the best,<br/><b>YOUR_NAME</b><br/>YOUR_COMPANY</p>\n</div>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -416,
+        272
+      ],
+      "id": "f41d72b7-f264-44d1-8e5f-6c167eb6a384",
+      "name": "Cold Lead Customer Email",
+      "webhookId": "140114ca-5f95-4e70-94bc-9da46e8ab034",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "rjNfv4VarOpSbRQ8",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1888,
+        -208
+      ],
+      "id": "d84a0b48-9847-4b77-8036-64e588bc78bf",
+      "name": "Workflow Error Handler"
+    },
+    {
+      "parameters": {
+        "sendTo": "YOUR_SALES_REP_EMAIL",
+        "subject": "=⚠️ Workflow Error — Lead Qualification Agent: {{ $json.execution.error.message }}",
+        "message": "=<div style=\"font-family:Arial,sans-serif;max-width:600px;\">\n<h2 style=\"color:#c62828;\">⚠️ Workflow Execution Error</h2>\n\n<table style=\"border-collapse:collapse;width:100%;\">\n  <tr style=\"background:#ffebee;\"><td style=\"padding:10px;border:1px solid #ddd;\"><b>Workflow</b></td><td style=\"padding:10px;border:1px solid #ddd;\">{{ $json.workflow.name }}</td></tr>\n  <tr><td style=\"padding:10px;border:1px solid #ddd;\"><b>Error Node</b></td><td style=\"padding:10px;border:1px solid #ddd;\">{{ $json.execution.error.node.name }}</td></tr>\n  <tr style=\"background:#ffebee;\"><td style=\"padding:10px;border:1px solid #ddd;\"><b>Error Message</b></td><td style=\"padding:10px;border:1px solid #ddd;\">{{ $json.execution.error.message }}</td></tr>\n  <tr><td style=\"padding:10px;border:1px solid #ddd;\"><b>Execution ID</b></td><td style=\"padding:10px;border:1px solid #ddd;\">{{ $json.execution.id }}</td></tr>\n  <tr style=\"background:#ffebee;\"><td style=\"padding:10px;border:1px solid #ddd;\"><b>Time</b></td><td style=\"padding:10px;border:1px solid #ddd;\">{{ new Date().toISOString() }}</td></tr>\n</table>\n\n<p style=\"margin-top:20px;\">Please check the n8n execution log and re-trigger if needed.</p>\n</div>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -1664,
+        -208
+      ],
+      "id": "878dcda3-fae2-4adb-98b1-1bd9b4222bb7",
+      "name": "Error Notification Email",
+      "webhookId": "d93e911e-f61d-46a2-bd5f-f898eaf85359",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "rjNfv4VarOpSbRQ8",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "On Form Submission": {
+      "main": [
+        [
+          {
+            "node": "Validate & Prepare Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate & Prepare Data": {
+      "main": [
+        [
+          {
+            "node": "Website Health Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Website Health Check": {
+      "main": [
+        [
+          {
+            "node": "Merge Enriched Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Enriched Data": {
+      "main": [
+        [
+          {
+            "node": "Check Duplicate Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Duplicate Email": {
+      "main": [
+        [
+          {
+            "node": "Deduplication Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deduplication Filter": {
+      "main": [
+        [
+          {
+            "node": "LEAD Scoring AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Vertex Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "LEAD Scoring AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "LEAD Scoring AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LEAD Scoring AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Create Lead Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Lead Record": {
+      "main": [
+        [
+          {
+            "node": "Route by Lead Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Lead Status": {
+      "main": [
+        [
+          {
+            "node": "Slack Hot Lead Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Warm Lead Customer Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Cold Lead Customer Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Hot Lead Alert": {
+      "main": [
+        [
+          {
+            "node": "Sales Rep Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sales Rep Alert Email": {
+      "main": [
+        [
+          {
+            "node": "Hot Lead Customer Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow Error Handler": {
+      "main": [
+        [
+          {
+            "node": "Error Notification Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "c02ab3cb-392b-478a-909c-2a102ba714a2",
+  "meta": {
+    "instanceId": "cbb9c00ba5db89df39f19e199f4a96679ecb173ad1b0be03dd1ffa310315c61a"
+  },
+  "id": "Yr7bPySDEOBk2E0I",
+  "tags": [
+    {
+      "updatedAt": "2026-04-15T06:14:24.848Z",
+      "createdAt": "2026-04-15T06:14:24.848Z",
+      "id": "CQX7WPkIYHHJhum1",
+      "name": "Lead Gen"
+    },
+    {
+      "updatedAt": "2026-04-15T06:14:24.885Z",
+      "createdAt": "2026-04-15T06:14:24.885Z",
+      "id": "rLlNTLhrTiQrxPne",
+      "name": "AI Agent"
+    },
+    {
+      "updatedAt": "2026-04-15T10:57:45.331Z",
+      "createdAt": "2026-04-15T10:57:45.331Z",
+      "id": "u8Y4iop2sH7pTXlu",
+      "name": "v3.0"
+    }
+  ]
+}
