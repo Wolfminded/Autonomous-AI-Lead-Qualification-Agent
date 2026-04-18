@@ -131,6 +131,6 @@ It demonstrates how Agentic AI can replace repetitive business workflows with in
 
 👤 Author
 
-Built by [Your Name]
+Built by [Shourya goyal]
 
 If you're working on AI automation, agent systems, or n8n workflows — let’s connect.
