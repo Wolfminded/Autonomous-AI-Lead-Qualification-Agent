@@ -107,7 +107,7 @@ The AI agent evaluates leads using a weighted scoring system:
   "next_action": "Schedule call within 24h",
   "recommended_offer": "Enterprise plan"
 }
-
+```
 🔐 Error Handling & Reliability
 Deduplication logic prevents duplicate leads
 Website health check improves scoring accuracy
